@@ -18,7 +18,7 @@
         </q-card>
       </div>
 
-      <div v-if="dialogState.selectedItem">
+      <div v-if="dialogState.selectedItem && !dialogState.selectionConfirmed">
         <q-card class="bg-white q-ma-md" inline style="width: 300px">
           <q-card-title>
             {{dialogState.selectedItem.provider}}
@@ -29,7 +29,34 @@
           </q-card-main>
         </q-card>
       </div>
+
+      <div v-if="dialogState.selectionConfirmed">
+
+      </div>
     </main>
+
+    <q-modal v-if="selectedItem" v-model="confirmationModal">
+      <q-list highlight>
+        <q-list-header>Provider</q-list-header>
+        <q-item>
+          <q-item-main :label="selectedItem.provider"/>
+        </q-item>
+
+        <q-item-separator />
+
+        <q-list-header>Price</q-list-header>
+        <q-item>
+          <q-item-main :label="selectedItem.price + ''"/>
+        </q-item>
+
+        <q-item-separator />
+
+        <q-list-header>Coverages</q-list-header>
+        <q-item v-for="(detail, name) in selectedItem.coverages" :key="name">
+          <q-item-main :label="name + ' : ' + detail" />
+        </q-item>
+      </q-list>
+    </q-modal>
   </q-page>
 </template>
 
@@ -38,7 +65,7 @@
 
 <script>
 import SayItSpeech from '../components/SayItSpeech'
-import { processDialog } from '../service'
+import TravelDialog from '../service/TravelDialog'
 
 export default {
   name: 'SayItIndex',
@@ -47,13 +74,17 @@ export default {
   data () {
     return {
       dialogState: {
-        nextIntents: ['travel.start'],
+        nextIntents: [],
         message: 'What\'s your plan?',
         listItems: [],
         selectedItem: undefined,
         selectionConfirmed: false,
-        onConfirmed: this.onConfirmed
-      }
+        onConfirmed: this.onConfirmed,
+        currentDialog: undefined
+      },
+      confirmationModal: false,
+      selectedItem: undefined,
+      sessionId: 'SESS_' + new Date().getMilliseconds()
     }
   },
 
@@ -63,12 +94,27 @@ export default {
       console.log('transcription: ' + transcription)
 
       this.$axios.post(process.env.API + '/feed', {
-        sessionId: 'SESS001',
+        sessionId: this.sessionId,
         text: lastSentence
       })
         .then((response) => {
-          if (response.data && response.data.intent && this.dialogState.nextIntents.includes(response.data.intent)) {
-            processDialog(response.data.intent, response.data.params, this.dialogState, this.$q)
+          if (response.data && response.data.intent) {
+
+            if(this.dialogState.currentDialog === undefined) {
+              switch (response.data.intent) {
+                case 'travel.start': this.dialogState.currentDialog = new TravelDialog()
+                  break
+                default: {
+                  this.dialogState.message = 'Sorry, your request is currently not supported. Please try another request'
+                  return
+                }
+              }
+            } else if (!this.dialogState.nextIntents.includes(response.data.intent)) {
+              this.dialogState.message = 'Cannot proceed your intent at this state'
+              return
+            }
+
+            this.dialogState.currentDialog.processDialog(response.data.intent, response.data.params, this.dialogState, this.$q)
           }
         })
         .catch(() => {
@@ -82,23 +128,9 @@ export default {
     },
 
     onConfirmed() {
-      this.$q.dialog({
-        title: 'Congratulation!',
-        message: 'You have purchased a travel Insurance',
 
-        color: 'primary',
-
-        ok: true, // takes i18n value, or String for "OK" button label
-
-        preventClose: true,
-
-        noBackdropDismiss: false,
-        noEscDismiss: false,
-
-        stackButtons: true,
-
-        position: 'top',
-      })
+      this.confirmationModal = true
+      this.selectedItem = this.dialogState.selectedItem
 
       this.dialogState = {
         nextIntents: ['travel.start'],
@@ -106,7 +138,8 @@ export default {
         listItems: [],
         selectedItem: undefined,
         selectionConfirmed: false,
-        onConfirmed: this.onConfirmed
+        onConfirmed: this.onConfirmed,
+        currentDialog: undefined
       }
     }
   }

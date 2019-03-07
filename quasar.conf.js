@@ -56,17 +56,25 @@ module.exports = function (ctx) {
         'QLayout',
         'QLayoutHeader',
         'QLayoutDrawer',
+
         'QPageContainer',
         'QPage',
+
         'QToolbar',
         'QToolbarTitle',
+
         'QBtn',
         'QIcon',
+
+        'QModal',
+
         'QList',
         'QListHeader',
         'QItem',
         'QItemMain',
+        'QItemSeparator',
         'QItemSide',
+        'QItemTile',
 
         'QCard',
         'QCardTitle',
